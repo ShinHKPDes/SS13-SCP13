@@ -486,7 +486,6 @@ default behaviour is:
 	if (restrained())
 		stop_pulling()
 
-
 	var/t7 = 1
 	if (restrained())
 		for(var/mob/living/M in range(src, 1))
@@ -576,11 +575,12 @@ default behaviour is:
 	if (s_active && !( s_active in contents ) && get_turf(s_active) != get_turf(src))	//check !( s_active in contents ) first so we hopefully don't have to call get_turf() so much.
 		s_active.close(src)
 
-	if(update_slimes)
+	if(update_slimes && GLOB.slimes.len)
 		for(var/mob/living/carbon/slime/M in view(1,src))
 			M.UpdateFeed()
 
-	for(var/mob/M in oview(src))
+	for(var/mob in oviewers(src))
+		var/mob/M = mob
 		M.update_vision_cone()
 
 	update_vision_cone()
@@ -670,6 +670,9 @@ default behaviour is:
 
 	resting = !resting
 	to_chat(src, "<span class='notice'>You are now [resting ? "resting" : "getting up"]</span>")
+
+	if (isscp049(src) || isscp106(src))
+		update_canmove()
 
 //called when the mob receives a bright flash
 /mob/living/flash_eyes(intensity = FLASH_PROTECTION_MODERATE, override_blindness_check = FALSE, affect_silicon = FALSE, visual = FALSE, type = /obj/screen/fullscreen/flash)

@@ -68,7 +68,7 @@ var/global/datum/controller/gameticker/ticker
 						for(var/i=0, i<10, i++)
 							sleep(1)
 							vote.process()
-			if(pregame_timeleft <= 0 || ((initialization_stage & INITIALIZATION_NOW_AND_COMPLETE) == INITIALIZATION_NOW_AND_COMPLETE))
+			if(pregame_timeleft <= 0 || ((Master.initialization_stage & INITIALIZATION_NOW_AND_COMPLETE) == INITIALIZATION_NOW_AND_COMPLETE))
 				current_state = GAME_STATE_SETTING_UP
 				Master.SetRunLevel(RUNLEVEL_SETUP)
 
@@ -166,9 +166,6 @@ var/global/datum/controller/gameticker/ticker
 			admins_number++
 	if(admins_number == 0)
 		send2adminirc("Round has started with no admins online.")
-
-
-	processScheduler.start()
 
 	if(config.sql_enabled)
 		statistic_cycle() // Polls population totals regularly and stores them in an SQL DB -- TLE
@@ -309,7 +306,7 @@ var/global/datum/controller/gameticker/ticker
 		if(captainless)
 			for(var/mob/M in GLOB.player_list)
 				if(!istype(M,/mob/new_player))
-					to_chat(M, "Captainship not forced on anyone.")
+					to_chat(M, "Site Director not forced on anyone.")
 
 
 	proc/process()
@@ -431,7 +428,7 @@ var/global/datum/controller/gameticker/ticker
 	to_world("<br>")
 
 
-	for (var/mob/living/silicon/ai/aiPlayer in SSmobs.mob_list)
+	for (var/mob/living/silicon/ai/aiPlayer in GLOB.mob_list)
 		if (aiPlayer.stat != 2)
 			to_world("<b>[aiPlayer.name] (Played by: [aiPlayer.key])'s laws at the end of the round were:</b>")
 
@@ -449,7 +446,7 @@ var/global/datum/controller/gameticker/ticker
 
 	var/dronecount = 0
 
-	for (var/mob/living/silicon/robot/robo in SSmobs.mob_list)
+	for (var/mob/living/silicon/robot/robo in GLOB.mob_list)
 
 		if(istype(robo,/mob/living/silicon/robot/drone))
 			dronecount++

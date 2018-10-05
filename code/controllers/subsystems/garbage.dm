@@ -24,6 +24,7 @@ SUBSYSTEM_DEF(garbage)
 	//Queue
 	var/list/queues
 
+	var/log = ""
 
 /datum/controller/subsystem/garbage/PreInit()
 	queues = new(GC_QUEUE_COUNT)
@@ -222,6 +223,15 @@ SUBSYSTEM_DEF(garbage)
 	if(dc)
 		dc.Cut()
 
+	// do not touch - Kachnov
+	log_qdel_refactor("[D] ([D.type]) is being hard-deleted.")
+
+	// allows debugging hard deletes from VV
+	if (log)
+		log += "\n"
+	log += "[D] ([D.type]) is being hard-deleted."
+
+
 	del(D)
 
 	tick = (TICK_USAGE-tick+((world.time-ticktime)/world.tick_lag*100))
@@ -275,10 +285,13 @@ SUBSYSTEM_DEF(garbage)
 /proc/qdel(datum/D, force=FALSE)
 	if(!D)
 		return
+
 	if(!istype(D))
 		crash_with("qdel() can only handle /datum (sub)types, was passed: [log_info_line(D)]")
 		del(D)
 		return
+
+
 	var/datum/qdel_item/I = SSgarbage.items[D.type]
 	if (!I)
 		I = SSgarbage.items[D.type] = new /datum/qdel_item(D.type)
@@ -291,6 +304,12 @@ SUBSYSTEM_DEF(garbage)
 		var/start_tick = world.tick_usage
 		var/hint = D.Destroy(force) // Let our friend know they're about to get fucked up.
 		D.SendSignal(COMSIG_PARENT_QDELETED)
+
+		// stops false positives from deleting during startup; let BYOND's GC handle it after Destroy() is called
+		if (world.time < 10 SECONDS && (hint in list(QDEL_HINT_QUEUE, QDEL_HINT_IWILLGC)))
+			D.gc_destroyed = world.time
+			return
+		
 		if(world.time != start_time)
 			I.slept_destroy++
 		else
@@ -303,7 +322,7 @@ SUBSYSTEM_DEF(garbage)
 			if (QDEL_HINT_IWILLGC)
 				D.gc_destroyed = world.time
 				return
-			if (QDEL_HINT_LETMELIVE)	//qdel should let the object live after calling destory.
+			if (QDEL_HINT_LETMELIVE)	//qdel should let the object live after calling Destroy().
 				if(!force)
 					D.gc_destroyed = null //clear the gc variable (important!)
 					return
@@ -345,7 +364,7 @@ SUBSYSTEM_DEF(garbage)
 
 	find_references(FALSE)
 
-/datum/proc/find_references(skip_alert)
+/datum/proc/find_references(skip_alert, var/movables_only = FALSE)
 	running_find_references = type
 	if(usr && usr.client)
 		if(usr.client.running_find_references)
@@ -371,8 +390,9 @@ SUBSYSTEM_DEF(garbage)
 	testing("Beginning search for references to a [type].")
 	last_find_references = world.time
 	DoSearchVar(GLOB)
-	for(var/datum/thing in world)
-		DoSearchVar(thing, "WorldRef: [thing]")
+	for(var/thing in world)
+		if (!movables_only || ismovable(thing))
+			DoSearchVar(thing, "WorldRef: [thing]")
 	testing("Completed search for references to a [type].")
 	if(usr && usr.client)
 		usr.client.running_find_references = null

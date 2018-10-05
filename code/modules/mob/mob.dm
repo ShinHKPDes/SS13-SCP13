@@ -1,24 +1,39 @@
 /mob/Destroy()//This makes sure that mobs with clients/keys are not just deleted from the game.
 	STOP_PROCESSING(SSmobs, src)
+	
+	GLOB.player_list -= src
+	GLOB.mob_list -= src
 	GLOB.dead_mob_list_ -= src
 	GLOB.living_mob_list_ -= src
+	GLOB.event_sources_count -= src
+
+	for (var/observer in all_virtual_listeners)
+		var/mob/observer/virtual/O = observer 
+		if (O.host == src)
+			O.host = null
+
 	unset_machine()
 	QDEL_NULL(hud_used)
 	for(var/obj/item/grab/G in grabbed_by)
 		qdel(G)
 	clear_fullscreen()
+	remove_screen_obj_references()
+
 	if(client)
-		remove_screen_obj_references()
 		for(var/atom/movable/AM in client.screen)
 			var/obj/screen/screenobj = AM
 			if(!istype(screenobj) || !screenobj.globalscreen)
 				qdel(screenobj)
 		client.screen = list()
+
 	if(mind && mind.current == src)
+		mind.current = null
 		spellremove(src)
+
 	ghostize()
+	key = null
 	..()
-	return QDEL_HINT_HARDDEL
+	return QDEL_HINT_IWILLGC
 
 /mob/proc/remove_screen_obj_references()
 	hands = null
@@ -41,11 +56,20 @@
 	gun_setting_icon = null
 	ability_master = null
 	zone_sel = null
+	
+/mob/New()
+	..()
+	GLOB.mob_list += src
 
 /mob/Initialize()
 	. = ..()
 	START_PROCESSING(SSmobs, src)
 
+/mob/Login()
+	..()
+	if (client)
+		GLOB.client2mob[client.ckey] = src 
+	
 /mob/proc/show_message(msg, type, alt, alt_type)//Message, type of message (1 or 2), alternative message, alt message type (1 or 2)
 	if(!client)	return
 
@@ -134,7 +158,7 @@
 		O.show_message(message, AUDIBLE_MESSAGE, deaf_message, VISIBLE_MESSAGE)
 
 /mob/proc/findname(msg)
-	for(var/mob/M in SSmobs.mob_list)
+	for(var/mob/M in GLOB.mob_list)
 		if (M.real_name == msg)
 			return M
 	return 0
@@ -155,8 +179,6 @@
 			. += 1
 
 /mob/proc/Life()
-//	if(organStructure)
-//		organStructure.ProcessOrgans()
 	return
 
 #define UNBUCKLED 0
@@ -402,7 +424,7 @@
 	set name = "Observe"
 	set category = "OOC"
 
-	if(!(initialization_stage&INITIALIZATION_COMPLETE))
+	if(!(Master.initialization_stage&INITIALIZATION_COMPLETE))
 		to_chat(src, "<span class='warning'>Please wait for server initialization to complete...</span>")
 		return
 
@@ -418,7 +440,8 @@
 	var/list/namecounts = list()
 	var/list/creatures = list()
 
-	for(var/obj/O in world)				//EWWWWWWWWWWWWWWWWWWWWWWWW ~needs to be optimised
+	for(var/obj in global.obj_list)
+		var/obj/O = obj 
 		if(!O.loc)
 			continue
 		if(istype(O, /obj/item/weapon/disk/nuclear))
@@ -441,7 +464,7 @@
 				namecounts[name] = 1
 			creatures[name] = O
 
-	for(var/mob/M in sortAtom(SSmobs.mob_list))
+	for(var/mob/M in sortAtom(GLOB.mob_list))
 		var/name = M.name
 		if (names.Find(name))
 			namecounts[name]++
@@ -622,7 +645,7 @@
 
 /mob/Stat()
 	..()
-	. = (is_client_active(10 MINUTES))
+	. = is_client_active(2 MINUTES)
 	if(!.)
 		return
 
@@ -635,8 +658,6 @@
 			stat("Location:", "([x], [y], [z]) [loc]")
 
 	if(client.holder)
-		if(statpanel("Processes") && processScheduler)
-			processScheduler.statProcesses()
 		if(statpanel("MC"))
 			stat("CPU:","[world.cpu]")
 			stat("Instances:","[world.contents.len]")
@@ -717,6 +738,31 @@
 		if(G.force_stand())
 			lying = 0
 
+	var/isscp106 = isscp106(src)
+	var/isscp049 = isscp049(src)
+			
+	if ((isscp106 || isscp049) && !incapacitated(INCAPACITATION_RESTRAINED|INCAPACITATION_BUCKLED_FULLY|INCAPACITATION_BUCKLED_PARTIALLY))
+		lying = 0
+		density = 1
+
+	// update SCP-106's vis_contents icon
+	if (isscp106)
+		var/mob/living/carbon/human/scp106/H = src 
+		H.fix_icons()
+		if (lying)
+			H.reset_vision_cone()
+		else 
+			H.update_vision_cone()
+
+	// update SCP-049's vis_contents icon
+	else if (isscp049)
+		var/mob/living/carbon/human/scp049/H = src 
+		H.fix_icons()
+		if (lying)
+			H.reset_vision_cone()
+		else 
+			H.update_vision_cone()
+
 	//Temporarily moved here from the various life() procs
 	//I'm fixing stuff incrementally so this will likely find a better home.
 	//It just makes sense for now. ~Carn
@@ -725,7 +771,12 @@
 		regenerate_icons()
 	else if( lying != lying_prev )
 		update_icons()
-	update_vision_cone()
+		if (ishuman(src))
+			var/mob/living/carbon/human/H = src 
+			if (lying)
+				H.reset_vision_cone()
+			else 
+				H.update_vision_cone()
 
 	return canmove
 
@@ -1058,8 +1109,18 @@ mob/proc/yank_out_object()
 			to_chat(usr, "The game is not currently looking for antags.")
 	else
 		to_chat(usr, "You must be observing or in the lobby to join the antag pool.")
+
 /mob/proc/is_invisible_to(var/mob/viewer)
 	return (!alpha || !mouse_opacity || viewer.see_invisible < invisibility)
+
+/mob/proc/is_scp012_affected(var/turf/target)
+	if (!target)
+		target = get_turf(src)
+	if (ishuman(src) && locate(/obj/item/paper/scp012) in view(2, src))
+		for (var/obj/item/paper/scp012/scp012 in view(2, target))
+			if (scp012.can_affect(src))
+				return TRUE 
+	return FALSE
 
 /client/proc/check_has_body_select()
 	return mob && mob.hud_used && istype(mob.zone_sel, /obj/screen/zone_sel)

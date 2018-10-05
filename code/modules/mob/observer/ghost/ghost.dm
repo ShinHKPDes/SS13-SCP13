@@ -88,7 +88,7 @@ var/global/list/image/ghost_sightless_images = list() //this is a list of images
 /mob/observer/ghost/Topic(href, href_list)
 	if (href_list["track"])
 		if(istype(href_list["track"],/mob))
-			var/mob/target = locate(href_list["track"]) in SSmobs.mob_list
+			var/mob/target = locate(href_list["track"]) in GLOB.mob_list
 			if(target)
 				ManualFollow(target)
 		else
@@ -137,8 +137,17 @@ Works together with spawning an observer, noted above.
 	// Are we the body of an aghosted admin? If so, don't make a ghost.
 	if(teleop && istype(teleop, /mob/observer/ghost))
 		var/mob/observer/ghost/G = teleop
-		if(G.admin_ghosted)
+
+		// teleop sometimes ends up pointing to ghosts that were supposed to be deleted, but weren't because of teleop still referencing them
+		if (G.gc_destroyed)
+			teleop = null 
+
+		else if (!G.loc)
+			QDEL_NULL(teleop)
+
+		else if (G.admin_ghosted)
 			return
+
 	if(key)
 		hide_fullscreens()
 		var/mob/observer/ghost/ghost = new(src)	//Transfer safety to observer spawning proc.
@@ -202,13 +211,16 @@ This is the proc mobs get to turn into a ghost. Forked from ghostize due to comp
 	if(mind.current.key && copytext(mind.current.key,1,2)!="@")	//makes sure we don't accidentally kick any clients
 		to_chat(src, "<span class='warning'>Another consciousness is in your body... it is resisting you.</span>")
 		return
-	stop_following()
-	mind.current.key = key
-	mind.current.teleop = null
-	mind.current.reload_fullscreen()
+	reenter_corpse_p()
 	if(!admin_ghosted)
 		announce_ghost_joinleave(mind, 0, "They now occupy their body again.")
 	return 1
+
+/mob/observer/ghost/proc/reenter_corpse_p()
+	stop_following()
+	mind.current.key = key
+	mind.current.reload_fullscreen()
+	QDEL_NULL(mind.current.teleop)
 
 /mob/observer/ghost/verb/toggle_medHUD()
 	set category = "Ghost"
@@ -283,6 +295,106 @@ This is the proc mobs get to turn into a ghost. Forked from ghostize due to comp
 
 	if(!fh.show_entry()) return
 	ManualFollow(fh.followed_instance)
+
+/mob/observer/ghost/verb/become_classd()
+	set category = "Ghost"
+	set name = "Become D-Class"
+	set desc = "Spawn in as a new D-Class."
+	if (world.time - timeofdeath >= 10 MINUTES)
+		if (ticker.current_state == GAME_STATE_PLAYING)
+			// create and possess a new mob
+			var/mob/living/carbon/human/H = new
+			var/datum/job/ref = job_master.occupations_by_type[/datum/job/assistant]
+			if (ref && ref.is_position_available())
+				job_master.EquipRank(H, "Class D", TRUE)
+
+				H.do_possession(src)
+				H.forceMove(get_turf(job_master.get_roundstart_spawnpoint("Class D")))
+
+				H.h_style = H.client.prefs.h_style
+				H.update_icon()
+
+				if (H.back)
+					var/deleted = H.back
+					if (H.remove_from_mob(deleted))
+						qdel(deleted)
+
+			else
+				to_chat(src, "<span class = 'danger'>This position is not available right now. Wait for another Class-D to die.</span>")
+		else
+			to_chat(src, "<span class = 'danger'>The game has not started yet, or has already ended.</span>")
+	else
+		to_chat(src, "<span class = 'danger'>You cannot spawn as a D-Class for [round(((10 MINUTES) - (world.time - timeofdeath))/600)] more minutes.</span>")
+
+/mob/observer/ghost/verb/become_scp()
+	set category = "Ghost"
+	set name = "Become SCP"
+	set desc = "Take control of a clientless SCP."
+
+	if (world.time - timeofdeath >= 5 MINUTES)
+		var/decl/security_state/security_state = decls_repository.get_decl(GLOB.using_map.security_state)
+		if (security_state.current_security_level.name in list("code red", "code delta", "code black"))
+			var/list/scps = list()
+			for (var/scp106 in GLOB.scp106s)
+				var/mob/M = scp106
+				if (!M.client)
+					scps += M
+			for (var/scp049 in GLOB.scp049s)
+				var/mob/M = scp049
+				if (!M.client)
+					scps += M
+			for (var/scp173 in GLOB.scp173s)
+				var/mob/M = scp173
+				if (!M.client)
+					scps += M
+			// add new humanoid SCPs here or they won't be playable - Kachnov
+			if (scps.len)
+				var/mob/living/scp = input(src, "Which SCP do you want to take control of?") as null|anything in scps
+				if (scp && !scp.client)
+					scp.do_possession(src)
+					if (ishuman(scp))
+						scp.verbs -= list(
+							/mob/living/carbon/human/verb/blink_t,
+							/mob/living/carbon/human/verb/bow,
+							/mob/living/carbon/human/verb/salute,
+							/mob/living/carbon/human/verb/hem,
+							/mob/living/carbon/human/verb/clap,
+							/mob/living/carbon/human/verb/eyebrow,
+							/mob/living/carbon/human/verb/cough,
+							/mob/living/carbon/human/verb/frown,
+							/mob/living/carbon/human/verb/nod,
+							/mob/living/carbon/human/verb/blush,
+							/mob/living/carbon/human/verb/wave,
+							/mob/living/carbon/human/verb/giggle,
+							/mob/living/carbon/human/verb/look,
+							/mob/living/carbon/human/verb/grin,
+							/mob/living/carbon/human/verb/cry,
+							/mob/living/carbon/human/verb/sigh,
+							/mob/living/carbon/human/verb/laugh,
+							/mob/living/carbon/human/verb/grumble,
+							/mob/living/carbon/human/verb/groan,
+							/mob/living/carbon/human/verb/mmoan,
+							/mob/living/carbon/human/verb/raise,
+							/mob/living/carbon/human/verb/shake,
+							/mob/living/carbon/human/verb/shrug,
+							/mob/living/carbon/human/verb/smile,
+							/mob/living/carbon/human/verb/whimper,
+							/mob/living/carbon/human/verb/wink,
+							/mob/living/carbon/human/verb/yawn,
+							/mob/living/carbon/human/verb/hug,
+							/mob/living/carbon/human/verb/scream,
+							/mob/living/carbon/human/verb/emoteclearthroat,
+							/mob/living/verb/lay_down
+						)
+				else
+					src << "<span class = 'danger'>This SCP has already been taken by someone else.</span>"
+			else
+				src << "<span class = 'danger'>There are no available SCPs.</span>"
+		else
+			src << "<span class = 'danger'>You cannot take control of a SCP until the security level is Red, Delta, or Black.</span>"
+	else
+		src << "<span class = 'danger'>You cannot spawn as a SCP for [round(((5 MINUTES) - (world.time - timeofdeath))/600)] more minutes.</span>"
+
 
 /mob/observer/ghost/proc/ghost_to_turf(var/turf/target_turf)
 	if(check_is_holy_turf(target_turf))
@@ -370,7 +482,7 @@ This is the proc mobs get to turn into a ghost. Forked from ghostize due to comp
 	var/mob/living/simple_animal/mouse/host
 	var/obj/machinery/atmospherics/unary/vent_pump/vent_found
 	var/list/found_vents = list()
-	for(var/obj/machinery/atmospherics/unary/vent_pump/v in SSmachines.machinery)
+	for(var/obj/machinery/atmospherics/unary/vent_pump/v in SSmachines.all_machinery)
 		if(!v.welded && v.z == T.z)
 			found_vents.Add(v)
 	if(found_vents.len)

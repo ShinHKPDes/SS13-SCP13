@@ -46,7 +46,7 @@
 		.= res
 
 /proc/get_area_name(N) //get area by its name
-	for(var/area/A in world)
+	for(var/area/A in GLOB.areas)
 		if(A.name == N)
 			return A
 	return 0
@@ -351,7 +351,7 @@ proc/isInSight(var/atom/A, var/atom/B)
 			return get_step(start, EAST)
 
 /proc/get_mob_by_key(var/key)
-	for(var/mob/M in SSmobs.mob_list)
+	for(var/mob/M in GLOB.mob_list)
 		if(M.ckey == lowertext(key))
 			return M
 	return null

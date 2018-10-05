@@ -8,7 +8,7 @@
 	endWhen = rand(500, 1500)
 
 /datum/event/ionstorm/announce()
-	for(var/mob/living/silicon/S in SSmobs.mob_list)
+	for(var/mob/living/silicon/S in GLOB.mob_list)
 		if(is_drone(S) || !(isAI(S) || isrobot(S)))
 			continue
 		if(isrobot(S))
@@ -96,7 +96,7 @@
 
 /datum/event/ionstorm/tick()
 	if(botEmagChance)
-		for(var/mob/living/bot/bot in world)
+		for(var/mob/living/bot/bot in GLOB.living_mob_list_)
 			if(prob(botEmagChance))
 				bot.emag_act(1)
 

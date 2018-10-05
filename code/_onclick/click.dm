@@ -67,6 +67,9 @@
 	if(stat || paralysis || stunned || weakened)
 		return
 
+	if (is_scp012_affected())
+		return
+
 	face_atom(A) // change direction to face what you clicked on
 
 	if(!canClick()) // in the year 2000...
@@ -336,6 +339,8 @@
 	if(direction != dir)
 		facedir(direction)
 
+GLOBAL_VAR_INIT(void, create_click_catcher())
+
 /obj/screen/click_catcher
 	icon = 'icons/mob/screen_gen.dmi'
 	icon_state = "click_catcher"
@@ -347,7 +352,7 @@
 	. = list()
 	for(var/i = 0, i<15, i++)
 		for(var/j = 0, j<15, j++)
-			var/obj/screen/click_catcher/CC = new()
+			var/obj/screen/click_catcher/CC = new
 			CC.screen_loc = "NORTH-[i],EAST-[j]"
 			. += CC
 

@@ -9,6 +9,9 @@
 	var/gen_time = 100 //how long we wait between hurting victims
 	var/list/victims = list()
 
+/obj/structure/scp151/examine(mob/user)
+	user << "<b><span class = 'euclid'><big>SCP-151</big></span></b> - [desc]"
+
 /obj/structure/scp151/proc/hurt_victims() //simulate drowning
 	for(var/mob/living/user in victims)
 		user.apply_damage(30, OXY)
@@ -25,9 +28,10 @@
 
 /obj/structure/scp151/examine(mob/living/user)
 	. = ..()
-	if(!(user in victims))
+	if(!(user in victims) && istype(user))
 		victims += user //on examine, adds user into victims list
-	spawn(2 SECONDS)
-		user.emote("cough")
-	spawn(2 SECONDS)
-		to_chat(user, "<span class='warning'>Your lungs begin to feel tight, and the briny taste of seawater permeates your mouth.</span>")
+	if (user in victims)
+		spawn(2 SECONDS)
+			user.emote("cough")
+		spawn(2 SECONDS)
+			to_chat(user, "<span class='warning'>Your lungs begin to feel tight, and the briny taste of seawater permeates your mouth.</span>")
